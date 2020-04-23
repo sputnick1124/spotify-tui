@@ -5,7 +5,7 @@ use crate::app::{
 use crate::config::ClientConfig;
 use anyhow::anyhow;
 use rspotify::{
-  client::Spotify,
+  client::{Spotify, ApiError},
   model::{
     album::SimplifiedAlbum,
     offset::for_position,
@@ -259,7 +259,11 @@ impl<'a> Network<'a> {
 
   async fn handle_error(&mut self, e: anyhow::Error) {
     let mut app = self.app.lock().await;
-    app.handle_error(e);
+    match e.downcast::<ApiError>() {
+        Ok(ApiError::Other(s)) if s == 400 => {app.dispatch(IoEvent::RefreshAuthentication);},
+        Ok(e) => {app.handle_error(anyhow!(e));},
+        Err(e) => {app.handle_error(e);},
+    }
   }
 
   async fn get_user(&mut self) {
